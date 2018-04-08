@@ -7,42 +7,53 @@ from keras.optimizers import RMSprop
 import os #foldery i pliki
 import re #regular expressions
 import cv2 #opencv
+import random # random
+import time # czas
 import pickle # serializacja obiektów do pliku
 import numpy as np #biblioteka numeryczna, tablice wielowymiarowe i utils
 import matplotlib.pyplot as plt #rysowanie wykresów
 from sklearn.cluster import KMeans # algorytm k średnich
 
 root_img_dir = 'C:/Users/Wojciech/Desktop/SNR/SET_B/' #ścieżka do katalogu głównej z folderami ptaków
-precalculatedImagesTuplesFileName = root_img_dir + "cachedImagesTuples.p" # plik w którym serializowane będą dane imageTuples
-precalculatedKMeansFileName = root_img_dir + "cachedKMeans.p" # plik w którym serializowane będą dane imageTuples
+cachedImagesTuplesFileName = root_img_dir + "cachedImagesTuples.p" # plik w którym serializowane będą dane imageTuples
+cachedKMeansFileName = root_img_dir + "cachedKMeans.p" # plik w którym serializowane będą dane imageTuples
 num_classes = 50 # liczba klas (ptaków) do rozpoznawania
-num_descriptors = 100 # TODO dla każdego obrazka pobierane tylko 100 pierwszych deskryptorów. czy takie ograniczenie jest ok? czy na początku są najważniejsze? czy nie powinno być np. 1000?
+num_descriptors = 100 # Liczba deskrptorów pobierana dla każdego obrazka. czy taka wartość jest ok? czy na początku są najważniejsze?
 num_features = num_classes * 10 # Liczba grup (cech) równa num_classes * 10 to podobno dobra praktyka
-clearCache = False # czy należy wyczyścić cache wartości i rozpocząć wszystkie obliczenia na nowo
+percentOfTraingSet = 0.8 # procent obrazków trafiających do zbioru trenującego, zbiór testowy będzie zawierał resztę
+batch_size = 128
+epochs = 20
+ignoreCache = False # czy należy ignorować cache wartości i przeprowadzić wszystkie obliczenia na nowo
 
 ## Obliczenie deskryptorów SIF dla każdego obrazka i zwrócenie tuple (ścieżka do pliku obrazka, klasa obrazka, lista deskryptorów tego obrazka)
-def getImageTuples():
+def getSIFTData():
     # jeśli istnienie cache danych to zwróć go bez ponownego obliczania wartości
-    if(os.path.isfile(precalculatedImagesTuplesFileName)):
+    if(os.path.isfile(cachedImagesTuplesFileName) and not ignoreCache):
         print("Using precalculated SIFT values") # wyświetl postęp w konsoli
-        return pickle.load( open( precalculatedImagesTuplesFileName, "rb" ) )
+        return pickle.load( open( cachedImagesTuplesFileName, "rb" ) )
     # oblicz od początku wszystkie wartości SIFT
-    imgTuples = [] # wynik funkcji
+    imgTuples = []
     class_no = 0 # wyświetlanie postepu w konsoli
     # weź wszystkie podkatalogi które mają pliki jpg, (w sumie jest 50 podkatalogów (rodzajów ptaków), 60 zdjęć każdy (60 obrazków danego ptaka))
-    for dirPath, dirNames, fileNames in os.walk(root_img_dir):
-        print("SIFT processing bird class " + str(class_no) + " from folder " + os.path.basename(dirPath) + "...") # wyświetl postęp w konsoli
+    startMili = getCurrentMiliTime()
+    for dirPath, _, fileNames in os.walk(root_img_dir):
         if(fileNames):
+            mili = getCurrentMiliTime() - startMili
+            startMili = getCurrentMiliTime()
+            print("SIFT processing bird class " + str(class_no) + "/" + str(num_classes) + " from folder " + os.path.basename(dirPath) + " " + str(mili) + "ms ...") # wyświetl postęp w konsoli
             for fileName in fileNames:
                 filePath = dirPath + "/" + fileName
                 descriptors = getSIFTDescriptors(filePath)[:num_descriptors]
                 imgTuple = (filePath, class_no, descriptors)
                 imgTuples.append(imgTuple)
-                break #TODO odkomentować, obecnie pobierany tylko 1 obrazek dla każdego ptaka, tylko ze wzgleu na wydajność (SIFT zajmuje dużo czasu)
             class_no = class_no + 1
+    random.seed(111)
+    random.shuffle(imgTuples)
+    splitPoint = int(percentOfTraingSet * len(imgTuples))
+    data = (imgTuples[:splitPoint:], imgTuples[splitPoint::])
     print("SIFT done. Caching result.") # wyświetl postęp w konsoli
-    pickle.dump(imgTuples, open(precalculatedImagesTuplesFileName, "wb"))
-    return imgTuples
+    pickle.dump(data, open(cachedImagesTuplesFileName, "wb"))
+    return data
 
 # Obliczenie deskryptorów SIFT dla obrazka o zadanej ścieżce na dysku
 def getSIFTDescriptors(imgPath):
@@ -52,26 +63,24 @@ def getSIFTDescriptors(imgPath):
     keyPoints, descriptors = sift.detectAndCompute(gray, None)
     return descriptors
 
-# Obliczenie klasyfikatora k-średnich dla deskryptorów, innymi słowy stworzenie funkcji przypisującej deskryptory do grup (cech)
-def getKMeansOfDescriptors(imgTuples):
-    if(os.path.isfile(precalculatedKMeansFileName)):
+def getCurrentMiliTime():
+    return int(round(time.time() * 1000))
+
+# Obliczenie klasyfikatora k-średnich dla deskryptorów SIFT, innymi słowy stworzenie funkcji przypisującej deskryptory do grup (cech)
+def getSIFTKMeans(imgTuples):
+    if(os.path.isfile(cachedKMeansFileName) and not ignoreCache):
         print("Using precalculated KMeans") # wyświetl postęp w konsoli
-        return pickle.load( open( precalculatedKMeansFileName, "rb" ) )
+        return pickle.load( open( cachedKMeansFileName, "rb" ) )
     print("KMeans started...") # wyświetl postęp w konsoli
     flatDescriptors = [desc for imgTuple in imgTuples for desc in imgTuple[2]] # weź wszystkie deskryptory wszystkich obrazów
-    kmeans = KMeans(n_clusters=num_features) # Liczna grup równa num_classes * 10 to podobno dobra praktyka
+    kmeans = KMeans(n_clusters=num_features) # Liczna k grup na które będą podzielone deskryptory
     kmeans.fit(flatDescriptors)
     print("KMeans Done. Caching result.") # wyświetl postęp w konsoli
-    pickle.dump(kmeans, open(precalculatedKMeansFileName, "wb"))
+    pickle.dump(kmeans, open(cachedKMeansFileName, "wb"))
     return kmeans
 
-#wyczyszczenie cache'a obliczeń
-def clearCacheIfRequested():
-    if(clearCache):
-        os.remove(precalculatedImagesTuplesFileName)
-
 #  Obliczenie cech dla każdego obrazka i zwrócenie tuple (ścieżka do pliku obrazka, klasa obrazka, histogram cech obrazka)
-def getImageFeatureTuples(imgTuples, kmeans):
+def getFeatureData(imgTuples, kmeans):
     imgFTuples = [] # wynik funkcji
     for imgTuple in imgTuples:
         descriptors = imgTuple[2]
@@ -83,31 +92,37 @@ def getImageFeatureTuples(imgTuples, kmeans):
         imgFTuples.append((imgTuple[0], imgTuple[1], img_feature_histogram_normalized))
     return imgFTuples
 
+# Pobranie list danych wejściowych i oczekiwanych wyjść sieci
+def getXYData(fSet):
+    xSet = [img[2] for img in fSet]
+    ySet = keras.utils.to_categorical([img[1] for img in fSet], num_classes)
+    return (np.asarray(xSet).astype('float32'), np.asarray(ySet).astype('float32'))
+
 #główne ciało skryptu
-clearCacheIfRequested()
-imgTuples = getImageTuples() # pobierz listę trójek (ścieżka do obrazka, klasa obrazka, lista deskryptorów SIFT obrazka)
-kmeans = getKMeansOfDescriptors(imgTuples) # oblicz grupowanie k-średnich dla deskryptorów, będą to cechy przypisywane do obrazków
-imgFTuples = getImageFeatureTuples(imgTuples, kmeans) # pobierz listę trójek (ścieżka do obrazka, klasa obrazka, histogram cech obrazka)
+trainSet, testSet = getSIFTData() # pobierz listy trójek (ścieżka do obrazka, klasa obrazka, lista deskryptorów SIFT obrazka)
+kmeans = getSIFTKMeans(trainSet) # oblicz grupowanie k-średnich dla deskryptorów, będą to cechy przypisywane do obrazków
+trainFSet = getFeatureData(trainSet, kmeans) # pobierz listę trójek (ścieżka do obrazka, klasa obrazka, histogram cech obrazka)
+testFSet = getFeatureData(testSet, kmeans) # pobierz listę trójek (ścieżka do obrazka, klasa obrazka, histogram cech obrazka)
+x_train, y_train = getXYData(trainFSet) # Pobranie list danych wejściowych i oczekiwanych wyjść sieci
+x_test, y_test = getXYData(testFSet) # Pobranie list danych wejściowych i oczekiwanych wyjść sieci
 
 model = Sequential()
-model.add(Dense(500, activation='relu', input_shape=(num_features)))
+model.add(Dense(500, activation='relu', input_shape=(num_features,)))
 model.add(Dense(500, activation='relu'))
 model.add(Dense(500, activation='relu'))
 model.add(Dense(500, activation='relu'))
 model.add(Dense(num_classes, activation='softmax'))
 model.summary()
 
-# TODO należy dodać podział na zbiór trenujący i testujący (proporcje odpowiednio 0.8 do 0.2)
-'''
 model.compile(loss='categorical_crossentropy',
               optimizer=RMSprop(),
               metrics=['accuracy'])
 
-model.fit_generator(
-        train_generator,
-        steps_per_epoch=2000 // batch_size,
-        epochs=50,
-        validation_data=validation_generator,
-        validation_steps=800 // batch_size)
-model.save_weights('first_try.h5')  # always save your weights after training or during training
-'''
+history = model.fit(x_train, y_train,
+                    batch_size=batch_size,
+                    epochs=epochs,
+                    verbose=1,
+                    validation_data=(x_test, y_test))
+score = model.evaluate(x_test, y_test, verbose=0)
+print('Test loss:', score[0])
+print('Test accuracy:', score[1])
