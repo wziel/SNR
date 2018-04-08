@@ -17,12 +17,13 @@ from sklearn.cluster import KMeans # algorytm k średnich
 root_img_dir = 'C:/Users/Wojciech/Desktop/SNR/SET_B/' #ścieżka do katalogu głównej z folderami ptaków
 cachedImagesTuplesFileName = root_img_dir + "cachedImagesTuples.p" # plik w którym serializowane będą dane imageTuples
 cachedKMeansFileName = root_img_dir + "cachedKMeans.p" # plik w którym serializowane będą dane imageTuples
+perceptronWeightsFileName = root_img_dir + "perceptron_weights.h5" # plik w którym serializowane są wagi perceptronu po procesie uczenia
 num_classes = 50 # liczba klas (ptaków) do rozpoznawania
-num_descriptors = 100 # Liczba deskrptorów pobierana dla każdego obrazka. czy taka wartość jest ok? czy na początku są najważniejsze?
+num_descriptors = 100 # Liczba deskrptorów pobierana dla każdego obrazka.
 num_features = num_classes * 10 # Liczba grup (cech) równa num_classes * 10 to podobno dobra praktyka
 percentOfTraingSet = 0.8 # procent obrazków trafiających do zbioru trenującego, zbiór testowy będzie zawierał resztę
-batch_size = 128
-epochs = 20
+batch_size = 20
+epochs = 50
 ignoreCache = False # czy należy ignorować cache wartości i przeprowadzić wszystkie obliczenia na nowo
 
 ## Obliczenie deskryptorów SIF dla każdego obrazka i zwrócenie tuple (ścieżka do pliku obrazka, klasa obrazka, lista deskryptorów tego obrazka)
@@ -110,7 +111,6 @@ model = Sequential()
 model.add(Dense(500, activation='relu', input_shape=(num_features,)))
 model.add(Dense(500, activation='relu'))
 model.add(Dense(500, activation='relu'))
-model.add(Dense(500, activation='relu'))
 model.add(Dense(num_classes, activation='softmax'))
 model.summary()
 
@@ -126,3 +126,12 @@ history = model.fit(x_train, y_train,
 score = model.evaluate(x_test, y_test, verbose=0)
 print('Test loss:', score[0])
 print('Test accuracy:', score[1])
+model.save_weights(perceptronWeightsFileName)
+model.load_weights(perceptronWeightsFileName)
+
+# TODO do K-średnich może nie trzeba brać wszystkich deskrpytorów tylko jakiś mały podzbiór wszystkich? mocno przyspieszy to proces. K-means dla 100 robi się ponad 2h.
+# TODO czy należy zwiększyć sztucznie liczbę obrazków? Dodawanie losowych rotacji, skalowania itd - jest takie narzędzie w pythonie. Obecnie mało obrazków, tylko 60 na 1 klasę.
+# TODO num_descriptors = 100 czy taka wartość jest ok? czy na początku są najważniejsze? Dla obrazka czasami jest kilka tysięcy deskryptorów, czy brać wszystkie? K-means dla 100 robi się ponad 2h.
+# TODO num_features = num_classes * 10 czy taka wartość jest okej? 500 cech, przy 50 klasach ptaków
+# TODO batch_size = 20 jak batch size wpływa na uczenie? jaki powinien być rozmiar?
+# TODO czy obrazki trzeba jakoś wstępnie obrobić? obecnie są na nich gałęzie itp. nie powinny być wykadrowane na ptaka?
