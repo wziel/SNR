@@ -19,11 +19,11 @@ cachedImagesTuplesFileName = root_img_dir + "cachedImagesTuples.p" # plik w któ
 cachedKMeansFileName = root_img_dir + "cachedKMeans.p" # plik w którym serializowane będą dane imageTuples
 perceptronWeightsFileName = root_img_dir + "perceptron_weights.h5" # plik w którym serializowane są wagi perceptronu po procesie uczenia
 num_classes = 50 # liczba klas (ptaków) do rozpoznawania
-num_descriptors = 100 # Liczba deskrptorów pobierana dla każdego obrazka.
+num_kmeans_descriptors = num_classes * 60 * 10 # Liczba losowych deskrptorów branych pod uwagę podczas obliczania cech k-średnich, obecnie średnio 10 na obrazek, musi być dobrana tak aby kmeans wykonywał się wystarczajaco szybko - docelowo mozna zwiększyć
 num_features = num_classes * 10 # Liczba grup (cech) równa num_classes * 10 to podobno dobra praktyka
 percentOfTraingSet = 0.8 # procent obrazków trafiających do zbioru trenującego, zbiór testowy będzie zawierał resztę
-batch_size = 20
-epochs = 50
+batch_size = 50
+epochs = 1000
 ignoreCache = False # czy należy ignorować cache wartości i przeprowadzić wszystkie obliczenia na nowo
 
 ## Obliczenie deskryptorów SIF dla każdego obrazka i zwrócenie tuple (ścieżka do pliku obrazka, klasa obrazka, lista deskryptorów tego obrazka)
@@ -44,11 +44,11 @@ def getSIFTData():
             print("SIFT processing bird class " + str(class_no) + "/" + str(num_classes) + " from folder " + os.path.basename(dirPath) + " " + str(mili) + "ms ...") # wyświetl postęp w konsoli
             for fileName in fileNames:
                 filePath = dirPath + "/" + fileName
-                descriptors = getSIFTDescriptors(filePath)[:num_descriptors]
+                descriptors = getSIFTDescriptors(filePath)
                 imgTuple = (filePath, class_no, descriptors)
                 imgTuples.append(imgTuple)
             class_no = class_no + 1
-    random.seed(111)
+    random.seed(111) # losowść za każdym razem taka sama
     random.shuffle(imgTuples)
     splitPoint = int(percentOfTraingSet * len(imgTuples))
     data = (imgTuples[:splitPoint:], imgTuples[splitPoint::])
@@ -74,8 +74,11 @@ def getSIFTKMeans(imgTuples):
         return pickle.load( open( cachedKMeansFileName, "rb" ) )
     print("KMeans started...") # wyświetl postęp w konsoli
     flatDescriptors = [desc for imgTuple in imgTuples for desc in imgTuple[2]] # weź wszystkie deskryptory wszystkich obrazów
-    kmeans = KMeans(n_clusters=num_features) # Liczna k grup na które będą podzielone deskryptory
-    kmeans.fit(flatDescriptors)
+    random.seed(111) # losowść za każdym razem taka sama
+    random.shuffle(flatDescriptors)
+    flatDescriptorsLimited = flatDescriptors[:num_kmeans_descriptors] ## ogranicz liczbę deskryptorów do obliczania k-średnich, tak aby algorytm wykonywał się wystarczająco szybko
+    kmeans = KMeans(n_clusters=num_features) # Liczba k grup na które będą podzielone deskryptory
+    kmeans.fit(flatDescriptorsLimited)
     print("KMeans Done. Caching result.") # wyświetl postęp w konsoli
     pickle.dump(kmeans, open(cachedKMeansFileName, "wb"))
     return kmeans
@@ -108,9 +111,10 @@ x_train, y_train = getXYData(trainFSet) # Pobranie list danych wejściowych i oc
 x_test, y_test = getXYData(testFSet) # Pobranie list danych wejściowych i oczekiwanych wyjść sieci
 
 model = Sequential()
-model.add(Dense(500, activation='relu', input_shape=(num_features,)))
-model.add(Dense(500, activation='relu'))
-model.add(Dense(500, activation='relu'))
+model.add(Dense(50, activation='relu', input_shape=(num_features,)))
+model.add(Dense(50, activation='relu'))
+model.add(Dense(50, activation='relu'))
+model.add(Dense(50, activation='relu'))
 model.add(Dense(num_classes, activation='softmax'))
 model.summary()
 
@@ -129,9 +133,7 @@ print('Test accuracy:', score[1])
 model.save_weights(perceptronWeightsFileName)
 model.load_weights(perceptronWeightsFileName)
 
-# TODO do K-średnich może nie trzeba brać wszystkich deskrpytorów tylko jakiś mały podzbiór wszystkich? mocno przyspieszy to proces. K-means dla 100 robi się ponad 2h.
 # TODO czy należy zwiększyć sztucznie liczbę obrazków? Dodawanie losowych rotacji, skalowania itd - jest takie narzędzie w pythonie. Obecnie mało obrazków, tylko 60 na 1 klasę.
-# TODO num_descriptors = 100 czy taka wartość jest ok? czy na początku są najważniejsze? Dla obrazka czasami jest kilka tysięcy deskryptorów, czy brać wszystkie? K-means dla 100 robi się ponad 2h.
+# TODO czy obrazki trzeba jakoś wstępnie obrobić? obecnie są na nich gałęzie itp. nie powinny być wykadrowane na ptaka? Bouding Boxes.
 # TODO num_features = num_classes * 10 czy taka wartość jest okej? 500 cech, przy 50 klasach ptaków
 # TODO batch_size = 20 jak batch size wpływa na uczenie? jaki powinien być rozmiar?
-# TODO czy obrazki trzeba jakoś wstępnie obrobić? obecnie są na nich gałęzie itp. nie powinny być wykadrowane na ptaka?
