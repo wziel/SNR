@@ -14,7 +14,8 @@ import numpy as np #biblioteka numeryczna, tablice wielowymiarowe i utils
 import matplotlib.pyplot as plt #rysowanie wykresów
 from sklearn.cluster import KMeans # algorytm k średnich
 
-root_img_dir = 'C:/Users/Wojciech/Desktop/SNR/SET_B/' #ścieżka do katalogu głównej z folderami ptaków
+root_img_dir = 'C:/Informatyka/SNR/SET_B/' #ścieżka do katalogu głównej z folderami ptaków
+root_= "C:/Informatyka/SNR/" #ścieżka do katalogu głównego gdzie opisane są boundingbox
 cachedImagesTuplesFileName = root_img_dir + "cachedImagesTuples.p" # plik w którym serializowane będą dane imageTuples
 cachedKMeansFileName = root_img_dir + "cachedKMeans.p" # plik w którym serializowane będą dane imageTuples
 perceptronWeightsFileName = root_img_dir + "perceptron_weights.h5" # plik w którym serializowane są wagi perceptronu po procesie uczenia
@@ -34,6 +35,7 @@ def getSIFTData():
         return pickle.load( open( cachedImagesTuplesFileName, "rb" ) )
     # oblicz od początku wszystkie wartości SIFT
     imgTuples = []
+    boundMap=createboundMap()
     class_no = 0 # wyświetlanie postepu w konsoli
     # weź wszystkie podkatalogi które mają pliki jpg, (w sumie jest 50 podkatalogów (rodzajów ptaków), 60 zdjęć każdy (60 obrazków danego ptaka))
     startMili = getCurrentMiliTime()
@@ -44,7 +46,8 @@ def getSIFTData():
             print("SIFT processing bird class " + str(class_no) + "/" + str(num_classes) + " from folder " + os.path.basename(dirPath) + " " + str(mili) + "ms ...") # wyświetl postęp w konsoli
             for fileName in fileNames:
                 filePath = dirPath + "/" + fileName
-                descriptors = getSIFTDescriptors(filePath)
+                image=boundPicture(cv2.imread(filePath),boundMap[fileName[0:32]])
+                descriptors = getSIFTDescriptors(image)
                 imgTuple = (filePath, class_no, descriptors)
                 imgTuples.append(imgTuple)
             class_no = class_no + 1
@@ -56,9 +59,28 @@ def getSIFTData():
     pickle.dump(data, open(cachedImagesTuplesFileName, "wb"))
     return data
 
+#tworzy słownik gdzie kluczem jest nazwa zdjęcia a wartością lista x,y,xh,yh
+def createboundMap():
+    boundMap={}
+    startMili=getCurrentMiliTime()
+    print("Processing boundaries for images")
+    with open(root_+"bounding_boxes.txt","r") as boundaries:
+        for line in boundaries:
+            cordStr=line.split(" ")
+            coordinates=list(map(int,cordStr[1:5]))
+            key=cordStr[0].replace("-","")
+            boundMap[key]=coordinates
+    print ("Dictionary for boundaries has been created in: "+str(getCurrentMiliTime()-startMili)+"ms")
+    return boundMap
+#wycina zdjecie
+def boundPicture(imgOrig, boundArea):
+    x, y,xh,yh=boundArea
+    imgCopy=imgOrig[y: y+yh, x:x+xh]
+    return imgCopy
+
 # Obliczenie deskryptorów SIFT dla obrazka o zadanej ścieżce na dysku
-def getSIFTDescriptors(imgPath):
-    img = cv2.imread(imgPath)
+#@EDIT: Obrazy są otwierane w getSIFTdata i są od razu przekazywane
+def getSIFTDescriptors(img):
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) ##convert image to gray scale
     sift = cv2.xfeatures2d.SIFT_create()
     keyPoints, descriptors = sift.detectAndCompute(gray, None)
