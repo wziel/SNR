@@ -1,0 +1,10 @@
+instalcja Anaconda z pythonem 3.6
+instalacja keras, tensorflow za pomoc¹ pip pip install keras, pip install tensorflow-gpu
+instalacja opencv pip install opencv-contrib-python
+instalacja cuda http://docs.nvidia.com/cuda/cuda-installation-guide-microsoft-windows/
+
+
+
+
+
+
