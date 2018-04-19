@@ -24,7 +24,7 @@ num_kmeans_descriptors = num_classes * 60 * 10 # Liczba losowych deskrptorów br
 num_features = num_classes * 10 # Liczba grup (cech) równa num_classes * 10 to podobno dobra praktyka
 percentOfTraingSet = 0.8 # procent obrazków trafiających do zbioru trenującego, zbiór testowy będzie zawierał resztę
 batch_size = 50
-epochs = 1000
+epochs = 100
 ignoreCache = False # czy należy ignorować cache wartości i przeprowadzić wszystkie obliczenia na nowo
 
 ## Pobranie danych wejściowych i obliczenie deskryptorów SIFT dla każdego obrazka i zwrócenie listy tuple (lista deskryptorów tego obrazka, klasa obrazka)
@@ -138,13 +138,11 @@ else:
     testFSet = getFeatureData(testSet, kmeans) # pobierz listę par  (histogram cech obrazka, klasa obrazka)
     x_train, y_train = getXYData(trainFSet) # Pobranie list danych wejściowych i oczekiwanych wyjść sieci
     x_test, y_test = getXYData(testFSet) # Pobranie list danych wejściowych i oczekiwanych wyjść sieci
-    pickle.dump((x_train, y_train, x_test, y_test), open(cachedSiftFileName, "wb"))
+    pickle.dump((x_train, y_train, x_test, y_test), open(cachedDataFileName, "wb"))
 
 model = Sequential()
 model.add(Dense(50, activation='relu', input_shape=(num_features,)))
-model.add(Dense(50, activation='relu'))
-model.add(Dense(50, activation='relu'))
-model.add(Dense(50, activation='relu'))
+model.add(Dense(90, activation='relu'))
 model.add(Dense(num_classes, activation='softmax'))
 model.summary()
 
