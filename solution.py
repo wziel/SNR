@@ -16,8 +16,7 @@ from sklearn.cluster import KMeans # algorytm k średnich
 
 root_dir = 'C:/Users/Wojciech/Desktop/SNR/' # ścieżka do katalogu głównego gdzie opisane są boundingbox
 root_img_dir = root_dir + 'SET_B/' # ścieżka do katalogu głównej z folderami ptaków
-cachedSiftFileName = root_dir + "cachedSIFT.p" # plik w którym serializowane będą dane imageTuples
-cachedKMeansFileName = root_dir + "cachedKMeans.p" # plik w którym serializowane będą dane imageTuples
+cachedDataFileName = root_dir + "cachedData.p" # plik w którym serializowane będą dane imageTuples
 perceptronWeightsFileName = root_dir + "perceptron_weights.h5" # plik w którym serializowane są wagi perceptronu po procesie uczenia
 bounding_boxes_file_name = root_dir + "bounding_boxes.txt"
 num_classes = 50 # liczba klas (ptaków) do rozpoznawania
@@ -30,10 +29,6 @@ ignoreCache = False # czy należy ignorować cache wartości i przeprowadzić ws
 
 ## Pobranie danych wejściowych i obliczenie deskryptorów SIFT dla każdego obrazka i zwrócenie listy tuple (lista deskryptorów tego obrazka, klasa obrazka)
 def getSiftData():
-    # jeśli istnienie cache danych to zwróć go bez ponownego obliczania wartości
-    if(os.path.isfile(cachedSiftFileName) and not ignoreCache):
-        print("Using cached SIFT values") # wyświetl postęp w konsoli
-        return pickle.load( open( cachedSiftFileName, "rb" ) )
     trainSet = []
     testSet = []
     boundMap = createboundMap()
@@ -57,12 +52,9 @@ def getSiftData():
             for testImg in dirImgs[splitPoint::]:
                 testSet.append((getSiftDescriptors(testImg), class_no))
             class_no = class_no + 1
-    print("\nSIFT done. Caching result...") # wyświetl postęp w konsoli
     random.shuffle(trainSet)
     random.shuffle(testSet)
-    data = (trainSet, testSet)
-    pickle.dump(data, open(cachedSiftFileName, "wb"))
-    return data
+    return (trainSet, testSet)
    
 #tworzy słownik gdzie kluczem jest nazwa zdjęcia a wartością lista x,y,xh,yh
 def createboundMap():
@@ -107,9 +99,6 @@ def getSiftDescriptors(img):
 
 # Obliczenie klasyfikatora k-średnich dla deskryptorów SIFT, innymi słowy stworzenie funkcji przypisującej deskryptory do grup (cech)
 def getKMeans(trainSet):
-    if(os.path.isfile(cachedKMeansFileName) and not ignoreCache):
-        print("Using cached KMeans.") # wyświetl postęp w konsoli
-        return pickle.load( open( cachedKMeansFileName, "rb" ) )
     print("KMeans started...") # wyświetl postęp w konsoli
     flatDescriptors = [desc for imgTuple in trainSet for desc in imgTuple[0]] # weź wszystkie deskryptory wszystkich obrazów
     random.seed(111) # losowść za każdym razem taka sama
@@ -117,8 +106,6 @@ def getKMeans(trainSet):
     flatDescriptorsLimited = flatDescriptors[:num_kmeans_descriptors] ## ogranicz liczbę deskryptorów do obliczania k-średnich, tak aby algorytm wykonywał się wystarczająco szybko
     kmeans = KMeans(n_clusters=num_features) # Liczba k grup na które będą podzielone deskryptory
     kmeans.fit(flatDescriptorsLimited)
-    print("KMeans Done. Caching result...") # wyświetl postęp w konsoli
-    pickle.dump(kmeans, open(cachedKMeansFileName, "wb"))
     return kmeans
 
 #  Obliczenie cech dla każdego obrazka i zwrócenie tuple (ścieżka do pliku obrazka, klasa obrazka, histogram cech obrazka)
@@ -140,12 +127,18 @@ def getXYData(fSet):
     return (np.asarray(xSet).astype('float32'), np.asarray(ySet).astype('float32'))
 
 #główne ciało skryptu
-trainSet, testSet = getSiftData() # pobierz listę par (lista deskryptorów SIFT obrazka, klasa obrazka)
-kmeans = getKMeans(trainSet) # oblicz grupowanie k-średnich dla deskryptorów zbioru treningowego, będą to cechy przypisywane do obrazków
-trainFSet = getFeatureData(trainSet, kmeans) # pobierz listę par (histogram cech obrazka, klasa obrazka)
-testFSet = getFeatureData(testSet, kmeans) # pobierz listę par  (histogram cech obrazka, klasa obrazka)
-x_train, y_train = getXYData(trainFSet) # Pobranie list danych wejściowych i oczekiwanych wyjść sieci
-x_test, y_test = getXYData(testFSet) # Pobranie list danych wejściowych i oczekiwanych wyjść sieci
+# jeśli istnienie cache danych to zwróć go bez ponownego obliczania wartości
+if(os.path.isfile(cachedDataFileName) and not ignoreCache):
+    print("Using cached data") # wyświetl postęp w konsoli
+    x_train, y_train, x_test, y_test = pickle.load( open( cachedDataFileName, "rb" ) )
+else:
+    trainSet, testSet = getSiftData() # pobierz listę par (lista deskryptorów SIFT obrazka, klasa obrazka)
+    kmeans = getKMeans(trainSet) # oblicz grupowanie k-średnich dla deskryptorów zbioru treningowego, będą to cechy przypisywane do obrazków
+    trainFSet = getFeatureData(trainSet, kmeans) # pobierz listę par (histogram cech obrazka, klasa obrazka)
+    testFSet = getFeatureData(testSet, kmeans) # pobierz listę par  (histogram cech obrazka, klasa obrazka)
+    x_train, y_train = getXYData(trainFSet) # Pobranie list danych wejściowych i oczekiwanych wyjść sieci
+    x_test, y_test = getXYData(testFSet) # Pobranie list danych wejściowych i oczekiwanych wyjść sieci
+    pickle.dump((x_train, y_train, x_test, y_test), open(cachedSiftFileName, "wb"))
 
 model = Sequential()
 model.add(Dense(50, activation='relu', input_shape=(num_features,)))
