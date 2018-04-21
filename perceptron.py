@@ -128,7 +128,8 @@ else:
 
 model = Sequential()
 model.add(Dense(50, activation='relu', input_shape=(num_features,)))
-model.add(Dense(90, activation='relu'))
+model.add(Dense(50, activation='relu'))
+model.add(Dense(50, activation='relu'))
 model.add(Dense(num_classes, activation='softmax'))
 model.summary()
 
@@ -141,8 +142,4 @@ history = model.fit(x_train, y_train,
                     epochs=epochs,
                     verbose=1,
                     validation_data=(x_test, y_test))
-score = model.evaluate(x_test, y_test, verbose=0)
-print('Test loss:', score[0])
-print('Test accuracy:', score[1])
 model.save_weights(perceptronWeightsFileName)
-model.load_weights(perceptronWeightsFileName)
