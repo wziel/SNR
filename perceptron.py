@@ -16,78 +16,52 @@ from sklearn.cluster import KMeans # algorytm k średnich
 from keras.preprocessing.image import ImageDataGenerator, array_to_img, img_to_array, load_img
 from PIL import Image
 
-
-root_dir = 'C:/Users/Wojciech/Desktop/SNR/' # ścieżka do katalogu głównego gdzie opisane są boundingbox
-root_img_dir = root_dir + 'SET_B/' # ścieżka do katalogu głównej z folderami ptaków
-root_multiply_temp_dir = root_dir + 'SET_B/temp/' # scieżka do katalogu, w którym generowane są tymczasowo przekształcenia
-cachedDataFileName = root_dir + "cachedData.p" # plik w którym serializowane będą dane imageTuples
-perceptronWeightsFileName = root_dir + "perceptron_weights.h5" # plik w którym serializowane są wagi perceptronu po procesie uczenia
-bounding_boxes_file_name = root_dir + "bounding_boxes.txt"
+root_dir = os.path.join('C:\\', 'Users', 'Wojciech', 'Desktop', 'SNR') # ścieżka do katalogu głównego gdzie opisane są boundingbox. Należy zmienić w zależności od środowiska uruchomienia.
+train_img_dir = os.path.join(root_dir, 'train') # ścieżka do katalogu głównej z folderami ptaków zbioru trenującego
+test_img_dir = os.path.join(root_dir, 'test') # ścieżka do katalogu głównej z folderami ptaków zbioru testującego
+cachedDataFileName = os.path.join(root_dir, "cachedData.p") # plik w którym serializowane będą dane imageTuples
+perceptronWeightsFileName = os.path.join(root_dir, "perceptron_weights.h5") # plik w którym serializowane są wagi perceptronu po procesie uczenia
 num_classes = 50 # liczba klas (ptaków) do rozpoznawania
 num_kmeans_descriptors = num_classes * 60 * 10 # Liczba losowych deskrptorów branych pod uwagę podczas obliczania cech k-średnich, obecnie średnio 10 na obrazek, musi być dobrana tak aby kmeans wykonywał się wystarczajaco szybko - docelowo mozna zwiększyć
 num_features = num_classes * 10 # Liczba grup (cech) równa num_classes * 10 to podobno dobra praktyka
-percentOfTraingSet = 0.8 # procent obrazków trafiających do zbioru trenującego, zbiór testowy będzie zawierał resztę
+imgMultiply = 10 # ile obrazków zbioru trenującego należy losowo wygenerowac z istniejących obrazków
 batch_size = 50
 epochs = 100
 ignoreCache = False # czy należy ignorować cache wartości i przeprowadzić wszystkie obliczenia na nowo
-        
 
 ## Pobranie danych wejściowych i obliczenie deskryptorów SIFT dla każdego obrazka i zwrócenie listy tuple (lista deskryptorów tego obrazka, klasa obrazka)
-def getSiftData():
-    trainSet = []
-    testSet = []
-    boundMap = createboundMap()
-    class_no = 0 # wyświetlanie postepu w konsoli
-    random.seed(111) # losowść za każdym razem taka sama
+def getSiftData(setDir, multiply):
     # weź wszystkie podkatalogi które mają pliki jpg, (w sumie jest 50 podkatalogów (rodzajów ptaków), 60 zdjęć każdy (60 obrazków danego ptaka))
-    for dirPath, _, fileNames in os.walk(root_img_dir):
-        if(fileNames):
-            #print("Calculating SIFT " + str(class_no) + "/50...") # wyświetl postęp w konsoli
-            print("Calculating SIFT {0}/50...\r".format(str(class_no)))
-            dirImgs = []
-            for fileName in fileNames:
-                filePath = dirPath + "/" + fileName
-                img = boundImage(cv2.imread(filePath), boundMap[fileName[0:32]])
-                dirImgs.append(img)
-            random.shuffle(dirImgs)
-            splitPoint = int(percentOfTraingSet * len(dirImgs)) # punkt podziału tego folderu na zbiór testowy i treningowy
-            for baseTrainImg in dirImgs[:splitPoint:]:
-                for trainImg in multiplyImage(baseTrainImg):
-                    trainSet.append((getSiftDescriptors(trainImg), class_no))
-            for testImg in dirImgs[splitPoint::]:
-                testSet.append((getSiftDescriptors(testImg), class_no))
-            class_no = class_no + 1
-    random.shuffle(trainSet)
-    random.shuffle(testSet)
-    return (trainSet, testSet)
-   
-#tworzy słownik gdzie kluczem jest nazwa zdjęcia a wartością lista x,y,xh,yh
-def createboundMap():
-    boundMap={}
-    with open(bounding_boxes_file_name, "r") as boundaries:
-        for line in boundaries:
-            cordStr=line.split(" ")
-            coordinates=list(map(int,cordStr[1:5]))
-            key=cordStr[0].replace("-","")
-            boundMap[key]=coordinates
-    return boundMap
+    siftData = []
+    class_no = 0
+    for dirName in [name for name in os.listdir(setDir) if os.path.isdir(os.path.join(setDir, name))]:
+        print("Processing SIFT folder " + dirName)
+        dirPath = os.path.join(setDir, dirName)
+        fileNames = [name for name in os.listdir(dirPath) if os.path.isfile(os.path.join(dirPath, name))]
+        for fileName in fileNames:
+            filePath = os.path.join(dirPath, fileName)
+            img = cv2.imread(filePath)
+            siftData.append((getSiftDescriptors(img), class_no))
+            if(multiply):
+                for newImg in multiplyImage(img):
+                    siftData.append((getSiftDescriptors(newImg), class_no))
+        class_no = class_no + 1
+    random.seed(111) # losowść za każdym razem taka sama
+    random.shuffle(siftData)
+    return siftData
 
-#wycina zdjecie
-def boundImage(imgOrig, boundArea):
-    x, y,xh,yh=boundArea
-    imgCopy=imgOrig[y: y+yh, x:x+xh]
-    return imgCopy
+## Obliczenie deskryptorów SIFT dla każdego obrazka ze zbioru treningowego lub testowego i zwrócenie tuple (lista deskryptorów tego obrazka, klasa obrazka)
+def getSiftDescriptors(img):
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) ##convert image to gray scale
+    sift = cv2.xfeatures2d.SIFT_create()
+    _, descriptors = sift.detectAndCompute(gray, None)
+    return descriptors
 
 def multiplyImage(img):
-    # TODO zrobić to w sposób bardziej geenryczny i losowy, obrazów może być też więcej, np. 10 na jeden
-    # TODO czy w przypadku SIFT (SCALE INVARIANT feature transform) skalowanie i rotacje mają sens?
-    imgs = []
-    imgs.append(img)
     datagen = ImageDataGenerator(
         rotation_range=20,
         height_shift_range=0.2,
-        width_shift_range=0.2,       
-        rescale=1./255,
+        width_shift_range=0.2,
         shear_range=0.2,
         zoom_range=0.2,
         horizontal_flip=True,
@@ -97,24 +71,15 @@ def multiplyImage(img):
     x = img_to_array(img_pil)
     x = x.reshape((1,) + x.shape)
 
-    multiplyIndex = 0
-    for batch in datagen.flow(x,save_to_dir=root_multiply_temp_dir, save_prefix='bird', save_format='jpeg'):
-        multiplyIndex += 1
-        if multiplyIndex >= 10:
-            break  
+    imgs = []
+    i = 0
+    for batch in datagen.flow(x, batch_size=imgMultiply):
+        imgs.extend(batch)
+        i += 1
+        if(i >= imgMultiply):
+            break
 
-    for fileName in os.listdir(root_multiply_temp_dir):
-        filePath = root_multiply_temp_dir + fileName
-        imgs.append(cv2.imread(filePath))
-        os.remove(filePath)
-    return imgs
-
-## Obliczenie deskryptorów SIFT dla każdego obrazka ze zbioru treningowego lub testowego i zwrócenie tuple (lista deskryptorów tego obrazka, klasa obrazka)
-def getSiftDescriptors(img):
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) ##convert image to gray scale
-    sift = cv2.xfeatures2d.SIFT_create()
-    _, descriptors = sift.detectAndCompute(gray, None)
-    return descriptors
+    return np.asarray(imgs).astype('uint8')
 
 # Obliczenie klasyfikatora k-średnich dla deskryptorów SIFT, innymi słowy stworzenie funkcji przypisującej deskryptory do grup (cech)
 def getKMeans(trainSet):
@@ -151,12 +116,14 @@ if(os.path.isfile(cachedDataFileName) and not ignoreCache):
     print("Using cached data") # wyświetl postęp w konsoli
     x_train, y_train, x_test, y_test = pickle.load( open( cachedDataFileName, "rb" ) )
 else:
-    trainSet, testSet = getSiftData() # pobierz listę par (lista deskryptorów SIFT obrazka, klasa obrazka)
+    trainSet = getSiftData(train_img_dir, True) # pobierz listę par (lista deskryptorów SIFT obrazka, klasa obrazka)
+    testSet = getSiftData(test_img_dir, False) # pobierz listę par (lista deskryptorów SIFT obrazka, klasa obrazka)
     kmeans = getKMeans(trainSet) # oblicz grupowanie k-średnich dla deskryptorów zbioru treningowego, będą to cechy przypisywane do obrazków
     trainFSet = getFeatureData(trainSet, kmeans) # pobierz listę par (histogram cech obrazka, klasa obrazka)
     testFSet = getFeatureData(testSet, kmeans) # pobierz listę par  (histogram cech obrazka, klasa obrazka)
     x_train, y_train = getXYData(trainFSet) # Pobranie list danych wejściowych i oczekiwanych wyjść sieci
     x_test, y_test = getXYData(testFSet) # Pobranie list danych wejściowych i oczekiwanych wyjść sieci
+    print("Caching network input data...") # wyświetl postęp w konsoli
     pickle.dump((x_train, y_train, x_test, y_test), open(cachedDataFileName, "wb"))
 
 model = Sequential()
@@ -167,7 +134,7 @@ model.summary()
 
 model.compile(loss='categorical_crossentropy',
               optimizer=RMSprop(),
-              metrics=['accuracy'])
+              metrics=['categorical_accuracy', 'top_k_categorical_accuracy'])
 
 history = model.fit(x_train, y_train,
                     batch_size=batch_size,
