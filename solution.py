@@ -13,9 +13,13 @@ import pickle # serializacja obiektów do pliku
 import numpy as np #biblioteka numeryczna, tablice wielowymiarowe i utils
 import matplotlib.pyplot as plt #rysowanie wykresów
 from sklearn.cluster import KMeans # algorytm k średnich
+from keras.preprocessing.image import ImageDataGenerator, array_to_img, img_to_array, load_img
+from PIL import Image
+
 
 root_dir = 'C:/Users/Wojciech/Desktop/SNR/' # ścieżka do katalogu głównego gdzie opisane są boundingbox
 root_img_dir = root_dir + 'SET_B/' # ścieżka do katalogu głównej z folderami ptaków
+root_multiply_temp_dir = root_dir + 'SET_B/temp/' # scieżka do katalogu, w którym generowane są tymczasowo przekształcenia
 cachedDataFileName = root_dir + "cachedData.p" # plik w którym serializowane będą dane imageTuples
 perceptronWeightsFileName = root_dir + "perceptron_weights.h5" # plik w którym serializowane są wagi perceptronu po procesie uczenia
 bounding_boxes_file_name = root_dir + "bounding_boxes.txt"
@@ -26,6 +30,7 @@ percentOfTraingSet = 0.8 # procent obrazków trafiających do zbioru trenująceg
 batch_size = 50
 epochs = 100
 ignoreCache = False # czy należy ignorować cache wartości i przeprowadzić wszystkie obliczenia na nowo
+        
 
 ## Pobranie danych wejściowych i obliczenie deskryptorów SIFT dla każdego obrazka i zwrócenie listy tuple (lista deskryptorów tego obrazka, klasa obrazka)
 def getSiftData():
@@ -76,18 +81,32 @@ def boundImage(imgOrig, boundArea):
 def multiplyImage(img):
     # TODO zrobić to w sposób bardziej geenryczny i losowy, obrazów może być też więcej, np. 10 na jeden
     # TODO czy w przypadku SIFT (SCALE INVARIANT feature transform) skalowanie i rotacje mają sens?
-    rotateDegree = 8
-    gaussianSize = 7
-    percentScale = 5
     imgs = []
-    (height, width) = img.shape[:2]
-    center = (width/2, height/2)
     imgs.append(img)
-    imgs.append(cv2.warpAffine(img, cv2.getRotationMatrix2D(center, rotateDegree, 1.0), (width, height)))
-    imgs.append(cv2.warpAffine(img, cv2.getRotationMatrix2D(center, -rotateDegree, 1.0), (width, height)))
-    imgs.append(cv2.GaussianBlur(img,(gaussianSize, gaussianSize), 0))
-    imgs.append(cv2.resize(img, None, fx=1, fy=(1.00 + percentScale/100), interpolation = cv2.INTER_CUBIC))
-    imgs.append(cv2.resize(img, None, fx=(1.00 + percentScale/100), fy=1, interpolation = cv2.INTER_CUBIC))
+    datagen = ImageDataGenerator(
+        rotation_range=20,
+        height_shift_range=0.2,
+        width_shift_range=0.2,       
+        rescale=1./255,
+        shear_range=0.2,
+        zoom_range=0.2,
+        horizontal_flip=True,
+        fill_mode='nearest')
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    img_pil = Image.fromarray(img)
+    x = img_to_array(img_pil)
+    x = x.reshape((1,) + x.shape)
+
+    multiplyIndex = 0
+    for batch in datagen.flow(x,save_to_dir=root_multiply_temp_dir, save_prefix='bird', save_format='jpeg'):
+        multiplyIndex += 1
+        if multiplyIndex >= 10:
+            break  
+
+    for fileName in os.listdir(root_multiply_temp_dir):
+        filePath = root_multiply_temp_dir + fileName
+        imgs.append(cv2.imread(filePath))
+        os.remove(filePath)
     return imgs
 
 ## Obliczenie deskryptorów SIFT dla każdego obrazka ze zbioru treningowego lub testowego i zwrócenie tuple (lista deskryptorów tego obrazka, klasa obrazka)
