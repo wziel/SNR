@@ -21,7 +21,7 @@ from PIL import Image
 root_dir = os.path.join('C:\\', 'Users', 'Wojciech', 'Desktop', 'SNR') # ścieżka do katalogu głównego gdzie opisane są boundingbox. Należy zmienić w zależności od środowiska uruchomienia.
 train_img_dir = os.path.join(root_dir, 'train') # ścieżka do katalogu głównej z folderami ptaków zbioru trenującego
 test_img_dir = os.path.join(root_dir, 'test') # ścieżka do katalogu głównej z folderami ptaków zbioru testującego
-xception_file_name = os.path.join(root_dir, "xception.best.{epoch:02d}-{val_categorical_accuracy:.2f}.hdf5") # plik w którym serializowane są wagi xception po procesie uczenia
+xception_file_name = os.path.join(root_dir, "xception.best.{epoch:02d}-{val_categorical_accuracy:.4f}.hdf5") # plik w którym serializowane są wagi xception po procesie uczenia
 history_file_name = os.path.join(root_dir, "xception.history.p") # plik w którym serializowana jest historia nauki xception
 network_input_size = 192
 batch_size = 32
