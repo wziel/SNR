@@ -4,6 +4,7 @@ from keras.preprocessing.image import ImageDataGenerator, array_to_img, img_to_a
 from keras.models import Sequential
 from keras.layers import Dense
 from keras.optimizers import RMSprop
+from keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLROnPlateau
 import os #foldery i pliki
 import re #regular expressions
 import cv2 #opencv
@@ -19,14 +20,15 @@ from PIL import Image
 root_dir = os.path.join('C:\\', 'Users', 'Wojciech', 'Desktop', 'SNR') # ścieżka do katalogu głównego gdzie opisane są boundingbox. Należy zmienić w zależności od środowiska uruchomienia.
 train_img_dir = os.path.join(root_dir, 'train') # ścieżka do katalogu głównej z folderami ptaków zbioru trenującego
 test_img_dir = os.path.join(root_dir, 'test') # ścieżka do katalogu głównej z folderami ptaków zbioru testującego
-cachedDataFileName = os.path.join(root_dir, "cachedData.p") # plik w którym serializowane będą dane imageTuples
-perceptronWeightsFileName = os.path.join(root_dir, "perceptron_weights.h5") # plik w którym serializowane są wagi perceptronu po procesie uczenia
+cachedDataFileName = os.path.join(root_dir, "perceptron.data.p") # plik w którym serializowane będą dane imageTuples
+perceptronFileName = os.path.join(root_dir, "perceptron.best.{epoch:02d}-{val_categorical_accuracy:.4f}.hdf5") # plik w którym serializowane są wagi perceptronu po procesie uczenia
+historyFileName = os.path.join(root_dir, "perceptron.history.p") # plik w którym serializowana jest historia nauki perceptronu
+batch_size = 32
+epochs = 10000
 num_classes = 50 # liczba klas (ptaków) do rozpoznawania
 num_kmeans_descriptors = num_classes * 60 * 10 # Liczba losowych deskrptorów branych pod uwagę podczas obliczania cech k-średnich, obecnie średnio 10 na obrazek, musi być dobrana tak aby kmeans wykonywał się wystarczajaco szybko - docelowo mozna zwiększyć
 num_features = num_classes * 10 # Liczba grup (cech) równa num_classes * 10 to podobno dobra praktyka
 imgMultiply = 10 # ile obrazków zbioru trenującego należy losowo wygenerowac z istniejących obrazków
-batch_size = 50
-epochs = 100
 ignoreCache = False # czy należy ignorować cache wartości i przeprowadzić wszystkie obliczenia na nowo
 
 ## Pobranie danych wejściowych i obliczenie deskryptorów SIFT dla każdego obrazka i zwrócenie listy tuple (lista deskryptorów tego obrazka, klasa obrazka)
@@ -128,8 +130,7 @@ else:
 
 model = Sequential()
 model.add(Dense(50, activation='relu', input_shape=(num_features,)))
-model.add(Dense(50, activation='relu'))
-model.add(Dense(50, activation='relu'))
+model.add(Dense(100, activation='relu'))
 model.add(Dense(num_classes, activation='softmax'))
 model.summary()
 
@@ -137,9 +138,13 @@ model.compile(loss='categorical_crossentropy',
               optimizer=RMSprop(),
               metrics=['categorical_accuracy', 'top_k_categorical_accuracy'])
 
+early_stop = EarlyStopping(monitor='val_categorical_accuracy', patience=10, verbose=0, mode='max')
+mcp_save = ModelCheckpoint(perceptronFileName, monitor='val_categorical_accuracy', save_best_only=True, mode='max')
+
 history = model.fit(x_train, y_train,
                     batch_size=batch_size,
                     epochs=epochs,
                     verbose=1,
-                    validation_data=(x_test, y_test))
-model.save_weights(perceptronWeightsFileName)
+                    validation_data=(x_test, y_test),
+                    callbacks=[early_stop, mcp_save])
+pickle.dump(history.history, open(historyFileName, "wb"))

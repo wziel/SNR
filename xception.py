@@ -4,6 +4,7 @@ from keras.preprocessing.image import ImageDataGenerator, array_to_img, img_to_a
 from keras.models import Sequential
 from keras.layers import Dense
 from keras.optimizers import RMSprop
+from keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLROnPlateau
 from keras.applications.xception import Xception
 import os #foldery i pliki
 import re #regular expressions
@@ -20,11 +21,12 @@ from PIL import Image
 root_dir = os.path.join('C:\\', 'Users', 'Wojciech', 'Desktop', 'SNR') # ścieżka do katalogu głównego gdzie opisane są boundingbox. Należy zmienić w zależności od środowiska uruchomienia.
 train_img_dir = os.path.join(root_dir, 'train') # ścieżka do katalogu głównej z folderami ptaków zbioru trenującego
 test_img_dir = os.path.join(root_dir, 'test') # ścieżka do katalogu głównej z folderami ptaków zbioru testującego
-xception_weights_file_name = os.path.join(root_dir, "xception.h5") # plik w którym serializowane są wagi perceptronu po procesie uczenia
-batch_size = 16
+xception_file_name = os.path.join(root_dir, "xception.best.{epoch:02d}-{val_categorical_accuracy:.2f}.hdf5") # plik w którym serializowane są wagi xception po procesie uczenia
+history_file_name = os.path.join(root_dir, "xception.history.p") # plik w którym serializowana jest historia nauki xception
 network_input_size = 192
+batch_size = 32
+epochs = 10000
 num_classes = 50
-epochs = 10
 
 # this is the augmentation configuration we will use for training
 train_datagen = ImageDataGenerator(
@@ -60,9 +62,13 @@ model.compile(loss='categorical_crossentropy',
             optimizer=RMSprop(),
             metrics=['categorical_accuracy', 'top_k_categorical_accuracy'])
 
+early_stop = EarlyStopping(monitor='val_categorical_accuracy', patience=10, verbose=0, mode='max')
+mcp_save = ModelCheckpoint(xception_file_name, monitor='val_categorical_accuracy', save_best_only=True, mode='max')
+
 history = model.fit_generator(
         train_generator,
         epochs=epochs,
         verbose=1,
-        validation_data=validation_generator)
-model.save_weights(xception_weights_file_name)  # always save your weights after training or during training
+        validation_data=validation_generator,
+        callbacks=[early_stop, mcp_save])
+pickle.dump(history.history, open(history_file_name, "wb"))
