@@ -24,7 +24,7 @@ test_img_dir = os.path.join(root_dir, 'test') # ścieżka do katalogu głównej 
 xception_file_name = os.path.join(root_dir, "xception.best.{epoch:02d}-{val_categorical_accuracy:.4f}.hdf5") # plik w którym serializowane są wagi xception po procesie uczenia
 history_file_name = os.path.join(root_dir, "xception.history.p") # plik w którym serializowana jest historia nauki xception
 network_input_size = 192
-batch_size = 32
+batch_size = 16
 epochs = 10000
 num_classes = 50
 
