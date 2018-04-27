@@ -75,7 +75,7 @@ def multiplyImage(img):
 
     imgs = []
     i = 0
-    for batch in datagen.flow(x, batch_size=imgMultiply):
+    for batch in datagen.flow(x, batch_size=imgMultiply, seed=111):
         imgs.extend(batch)
         i += 1
         if(i >= imgMultiply):
@@ -94,7 +94,7 @@ def getKMeans(trainSet):
     kmeans.fit(flatDescriptorsLimited)
     return kmeans
 
-#  Obliczenie cech dla każdego obrazka i zwrócenie tuple (ścieżka do pliku obrazka, klasa obrazka, histogram cech obrazka)
+#  Obliczenie cech dla każdego obrazka i zwrócenie tuple (histogram cech obrazka, klasa obrazka)
 def getFeatureData(imgSet, kmeans):
     imgFTuples = [] # wynik funkcji
     for descriptors, class_no in imgSet:
