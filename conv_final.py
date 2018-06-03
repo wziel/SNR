@@ -1,4 +1,4 @@
-from __future__ import print_function 
+from __future__ import print_function
 import keras
 from keras.preprocessing.image import ImageDataGenerator, array_to_img, img_to_array, load_img
 from keras.models import Sequential
@@ -19,16 +19,16 @@ from sklearn.cluster import KMeans # algorytm k średnich
 from keras.preprocessing.image import ImageDataGenerator, array_to_img, img_to_array, load_img
 from PIL import Image
 
-root_dir = os.path.join('C:\\', 'Users', 'Wojciech', 'Desktop', 'SNR') # ścieżka do katalogu głównego gdzie opisane są boundingbox. Należy zmienić w zależności od środowiska uruchomienia.
+root_dir = os.path.join('C:\\', 'Informatyka', 'SNR', 'conv') # ścieżka do katalogu głównego gdzie opisane są boundingbox. Należy zmienić w zależności od środowiska uruchomienia.
 train_img_dir = os.path.join(root_dir, 'train') # ścieżka do katalogu głównej z folderami ptaków zbioru trenującego
 test_img_dir = os.path.join(root_dir, 'test') # ścieżka do katalogu głównej z folderami ptaków zbioru testującego
 network_input_size = 192
-batch_size = 8
-epochs = 40
+batch_size = 32
+epochs = 175
 num_classes = 50
 conv_regularizer = regularizers.l1(0.01)
-conv_file_name = os.path.join(root_dir, "conv.best.{epoch:02d}-{val_categorical_accuracy:.4f}.hdf5") # plik w którym serializowane są wagi po procesie uczenia
-history_file_name = os.path.join(root_dir, "conv.history.p") # plik w którym serializowana jest historia nauki
+conv_file_name = os.path.join(root_dir, "conv_final.best.{epoch:02d}-{val_categorical_accuracy:.4f}.hdf5") # plik w którym serializowane są wagi po procesie uczenia
+history_file_name = os.path.join(root_dir, "conv_final.history.p") # plik w którym serializowana jest historia nauki
 
 # this is the augmentation configuration we will use for training
 train_datagen = ImageDataGenerator(rescale=1./255,
@@ -60,12 +60,12 @@ validation_generator = test_datagen.flow_from_directory(
 model = Sequential()
 model.add(Conv2D(32, (3, 3), input_shape=(network_input_size, network_input_size, 3), activation='relu'))
 model.add(MaxPooling2D(pool_size=(2, 2)))
-model.add(Conv2D(32, (3, 3), activation='relu'))
+model.add(Conv2D(32, (1, 1), activation='relu'))
 model.add(MaxPooling2D(pool_size=(2, 2)))
 model.add(Conv2D(32, (3, 3), activation='relu'))
 model.add(MaxPooling2D(pool_size=(2, 2)))
 model.add(Flatten())
-model.add(Dense(100, activation='relu')) ##, kernel_regularizer=regularizers.l2(0.01)
+model.add(Dense(50, activation='relu')) ##, kernel_regularizer=regularizers.l2(0.01)
 model.add(Dense(num_classes, activation='softmax'))
 model.summary(line_length = 70)
 
@@ -73,7 +73,7 @@ model.compile(loss='categorical_crossentropy',
             optimizer=RMSprop(),
             metrics=['categorical_accuracy', 'top_k_categorical_accuracy'])
 
-#early_stop = EarlyStopping(monitor='val_loss', patience=40, verbose=0, mode='min')
+early_stop = EarlyStopping(monitor='val_categorical_accuracy', patience=30, verbose=0, mode='max')
 mcp_save = ModelCheckpoint(conv_file_name, monitor='val_categorical_accuracy', save_best_only=True, mode='max')
 
 history = model.fit_generator(
@@ -81,7 +81,7 @@ history = model.fit_generator(
         epochs=epochs,
         verbose=1,
         validation_data=validation_generator,
-        callbacks=[mcp_save])
+        callbacks=[early_stop,mcp_save])
 pickle.dump(history.history, open(history_file_name, "wb"))
 
 # model.load_weights(filepath, by_name=False)

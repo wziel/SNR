@@ -10,12 +10,12 @@ import numpy as np #biblioteka numeryczna, tablice wielowymiarowe i utils
 import matplotlib.pyplot as plt #rysowanie wykresów
 from PIL import Image
 
-root_dir = os.path.join('C:\\', 'Users', 'Wojciech', 'Desktop', 'SNR') # ścieżka do katalogu głównego gdzie opisane są boundingbox. Należy zmienić w zależności od środowiska uruchomienia.
-history_file_name = os.path.join(root_dir, "conv.RL25.history.p") # plik w którym serializowana jest historia nauki # xception.history.p
+root_dir = os.path.join('C:\\', 'Informatyka', 'SNR', 'conv') # ścieżka do katalogu głównego gdzie opisane są boundingbox. Należy zmienić w zależności od środowiska uruchomienia.
+history_file_name = os.path.join(root_dir, "conv_final.history.p") # plik w którym serializowana jest historia nauki # xception.history.p
 history_50 = pickle.load( open( history_file_name, "rb" ) )
-cat_acc=os.path.join(root_dir, "categorical_accuracy.png")
-top_acc=os.path.join(root_dir, "top_k_categorical_accuracy.png")
-loss=os.path.join(root_dir, "loss.png")
+cat_acc=os.path.join(root_dir, "1categorical_accuracy.png")
+top_acc=os.path.join(root_dir, "1top_k_categorical_accuracy.png")
+loss=os.path.join(root_dir, "1loss.png")
 # dostępne metryki print(history.keys()) dict_keys(['val_loss', 'val_categorical_accuracy', 'val_top_k_categorical_accuracy', 'loss', 'categorical_accuracy', 'top_k_categorical_accuracy'])
 # summarize history for categorical_accuracy
 plt.figure(figsize=(8, 4))
@@ -26,7 +26,7 @@ plt.plot(history_50['val_top_k_categorical_accuracy'], color = 'green', linestyl
 plt.title('model accuracy')
 plt.ylabel('accuracy')
 plt.xlabel('epoch')
-plt.legend(['train_acc', 'test_acc','train_top5_acc', 'test_top5_acc'], loc='upper right')
+plt.legend(['train_acc', 'test_acc','train_top5_acc', 'test_top5_acc'], loc='upper left')
 plt.savefig(cat_acc)
 plt.show()
 # summarize history for loss
