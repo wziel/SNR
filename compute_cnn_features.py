@@ -12,7 +12,7 @@ import sys
 
 root_dir = os.path.join('C:\\', 'Informatyka', 'SNR', 'conv')
 model_dir=os.path.join(root_dir, 'conv_final.best.160-0.4517.hdf5')
-train_img_dir = os.path.join(root_dir, 'train')
+train_img_dir = os.path.join(root_dir, 'images')
 output_dir= orig_stdout = os.path.join(root_dir, 'out.txt')
 
 
