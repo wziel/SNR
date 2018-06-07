@@ -25,6 +25,7 @@ test_img_dir = os.path.join(root_dir, 'test') # ścieżka do katalogu głównej 
 network_input_size = 192
 batch_size = 32
 epochs = 175
+model_dir=os.path.join(root_dir, 'model.p')
 num_classes = 50
 conv_regularizer = regularizers.l1(0.01)
 conv_file_name = os.path.join(root_dir, "conv_final.best.{epoch:02d}-{val_categorical_accuracy:.4f}.hdf5") # plik w którym serializowane są wagi po procesie uczenia
@@ -84,4 +85,5 @@ history = model.fit_generator(
         callbacks=[early_stop,mcp_save])
 pickle.dump(history.history, open(history_file_name, "wb"))
 
+model.save
 # model.load_weights(filepath, by_name=False)
